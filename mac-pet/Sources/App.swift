@@ -240,7 +240,9 @@ final class AppController: NSObject, NSMenuDelegate, NSWindowDelegate {
             empty.isEnabled = false
             m.addItem(empty)
         } else {
-            let hint = NSMenuItem(title: "Нажми — и вставляй через ⌘V", action: nil, keyEquivalent: "")
+            let pastes = clipboard.autoPaste && ClipboardHistory.hasAccess(prompt: false)
+            let hint = NSMenuItem(title: pastes ? "Нажми — и я сразу вставлю" : "Нажми — и вставляй через ⌘V",
+                                  action: nil, keyEquivalent: "")
             hint.isEnabled = false
             m.addItem(hint)
             for (i, text) in clipboard.items.enumerated() {
@@ -260,6 +262,9 @@ final class AppController: NSObject, NSMenuDelegate, NSWindowDelegate {
             let toggle = item("Запоминать скопированное", #selector(toggleClipboard))
             toggle.state = clipboard.enabled ? .on : .off
             m.addItem(toggle)
+            let paste = item("Вставлять сразу (без ⌘V)", #selector(toggleAutoPaste))
+            paste.state = clipboard.autoPaste ? .on : .off
+            m.addItem(paste)
         }
         return m
     }
@@ -267,8 +272,31 @@ final class AppController: NSObject, NSMenuDelegate, NSWindowDelegate {
     @objc func copyClip(_ sender: NSMenuItem) {
         guard let text = sender.representedObject as? String else { return }
         clipboard.copy(text)
-        if let cat = cats.randomElement() {
-            cat.say(cat.config.line("Скопировал{а}! Вставляй ⌘V 📋"), 2.5)
+        let cat = cats.randomElement()
+
+        guard clipboard.autoPaste else {
+            cat?.say(cat?.config.line("Скопировал{а}! Вставляй ⌘V 📋") ?? "", 2.5)
+            return
+        }
+        if ClipboardHistory.hasAccess(prompt: false) {
+            // Ждём, пока закроется меню и фокус вернётся в программу, потом жмём ⌘V
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                ClipboardHistory.pressCommandV()
+            }
+        } else if !clipboard.askedForAccess {
+            clipboard.askedForAccess = true
+            _ = ClipboardHistory.hasAccess(prompt: true)
+            cat?.say("Чтобы я вставлял сам, разреши мне «Универсальный доступ» в настройках. А пока вставь через ⌘V", 8)
+        } else {
+            cat?.say(cat?.config.line("Скопировал{а}! Вставляй ⌘V 📋") ?? "", 2.5)
+        }
+    }
+
+    @objc func toggleAutoPaste() {
+        clipboard.autoPaste.toggle()
+        if clipboard.autoPaste && !ClipboardHistory.hasAccess(prompt: false) {
+            clipboard.askedForAccess = true
+            _ = ClipboardHistory.hasAccess(prompt: true)
         }
     }
 

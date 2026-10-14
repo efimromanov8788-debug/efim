@@ -4,6 +4,7 @@
 // паролей не запоминаются — они помечают их специальным типом в буфере обмена.
 
 import AppKit
+import ApplicationServices
 import Carbon
 
 extension Notification.Name {
@@ -31,6 +32,27 @@ final class ClipboardHistory {
         }
     }
     var hotKey: EventHotKeyRef?
+    // Сразу вставлять выбранное в текущую программу, а не только копировать
+    var autoPaste: Bool = UserDefaults.standard.object(forKey: "clipboardAutoPaste") as? Bool ?? true {
+        didSet { UserDefaults.standard.set(autoPaste, forKey: "clipboardAutoPaste") }
+    }
+    var askedForAccess = false
+
+    // Чтобы нажать ⌘V за пользователя, macOS требует разрешение «Универсальный доступ»
+    nonisolated static func hasAccess(prompt: Bool) -> Bool {
+        AXIsProcessTrustedWithOptions(["AXTrustedCheckOptionPrompt": prompt] as CFDictionary)
+    }
+
+    nonisolated static func pressCommandV() {
+        let source = CGEventSource(stateID: .combinedSessionState)
+        let key = CGKeyCode(kVK_ANSI_V)
+        let down = CGEvent(keyboardEventSource: source, virtualKey: key, keyDown: true)
+        let up = CGEvent(keyboardEventSource: source, virtualKey: key, keyDown: false)
+        down?.flags = .maskCommand
+        up?.flags = .maskCommand
+        down?.post(tap: .cghidEventTap)
+        up?.post(tap: .cghidEventTap)
+    }
 
     // Возвращает только что скопированный текст, если он новый
     func poll() -> String? {
