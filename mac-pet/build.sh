@@ -9,7 +9,7 @@ rm -rf build
 mkdir -p "$APP/Contents/MacOS"
 
 for arch in arm64 x86_64; do
-    swiftc -O -parse-as-library -target "$arch-apple-macos12.0" Sources/Murka.swift -o "build/Murka-$arch"
+    swiftc -O -parse-as-library -target "$arch-apple-macos12.0" Sources/*.swift -o "build/Murka-$arch"
 done
 lipo -create build/Murka-arm64 build/Murka-x86_64 -output "$APP/Contents/MacOS/Murka"
 rm build/Murka-arm64 build/Murka-x86_64
