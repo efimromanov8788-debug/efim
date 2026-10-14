@@ -1,0 +1,35 @@
+name: Сборка Мурки
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "mac-pet/**"
+      - ".github/workflows/release.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Сборка
+        run: ./mac-pet/build.sh
+
+      - name: Упаковка
+        run: ditto -c -k --keepParent mac-pet/build/Murka.app Murka.zip
+
+      - name: Публикация релиза
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="v1.${{ github.run_number }}"
+          gh release create "$TAG" Murka.zip \
+            --target "$GITHUB_SHA" \
+            --title "Мурка $TAG" \
+            --notes "Скачай Murka.zip, распакуй и перетащи Murka.app в «Программы». Подробнее — в README." \
+            --latest
