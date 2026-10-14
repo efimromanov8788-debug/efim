@@ -105,6 +105,7 @@ struct Traits {
     let idle: Double
     let idleTime: ClosedRange<Double>
     let sleepTime: ClosedRange<Double>
+    // За сколько минут кот проголодается с нуля до конца
     let hungerMinutes: Double
     let hissChance: Double
     let hearts: Int
@@ -149,19 +150,19 @@ enum Personality: String, Codable, CaseIterable, Identifiable {
         switch self {
         case .playful:
             return Traits(speed: 1.5, walk: 3, sleep: 0.4, hop: 2, windowJump: 2.5, climb: 2, approach: 0.6, idle: 0.5,
-                          idleTime: 1...3, sleepTime: 8...15, hungerMinutes: 12, hissChance: 0, hearts: 3)
+                          idleTime: 1...3, sleepTime: 8...15, hungerMinutes: 180, hissChance: 0, hearts: 3)
         case .lazy:
             return Traits(speed: 0.6, walk: 1.5, sleep: 4, hop: 0.2, windowJump: 0.3, climb: 0.2, approach: 0.3, idle: 2,
-                          idleTime: 4...9, sleepTime: 30...70, hungerMinutes: 20, hissChance: 0, hearts: 2)
+                          idleTime: 4...9, sleepTime: 30...70, hungerMinutes: 300, hissChance: 0, hearts: 2)
         case .curious:
             return Traits(speed: 1.1, walk: 3, sleep: 1, hop: 0.8, windowJump: 2, climb: 1.5, approach: 1.5, idle: 1,
-                          idleTime: 2...4, sleepTime: 10...20, hungerMinutes: 15, hissChance: 0, hearts: 3)
+                          idleTime: 2...4, sleepTime: 10...20, hungerMinutes: 240, hissChance: 0, hearts: 3)
         case .affectionate:
             return Traits(speed: 1, walk: 2, sleep: 1.2, hop: 0.6, windowJump: 0.8, climb: 0.5, approach: 3, idle: 1,
-                          idleTime: 2...5, sleepTime: 12...25, hungerMinutes: 15, hissChance: 0, hearts: 6)
+                          idleTime: 2...5, sleepTime: 12...25, hungerMinutes: 240, hissChance: 0, hearts: 6)
         case .grumpy:
             return Traits(speed: 0.9, walk: 2, sleep: 2, hop: 0.3, windowJump: 1, climb: 0.8, approach: 0.1, idle: 2,
-                          idleTime: 3...7, sleepTime: 15...35, hungerMinutes: 10, hissChance: 0.4, hearts: 1)
+                          idleTime: 3...7, sleepTime: 15...35, hungerMinutes: 150, hissChance: 0.4, hearts: 1)
         }
     }
 

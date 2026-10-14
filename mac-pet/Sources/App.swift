@@ -26,6 +26,9 @@ final class AppController: NSObject, NSMenuDelegate, NSWindowDelegate {
     var lastWindowScan: Double = -1
 
     let updater = Updater()
+    let clipboard = ClipboardHistory()
+    var lastClipboardPoll: Double = 0
+    var lastCopyComment: Double = -1e9
     var lastUpdateCheck: Double = -1e9
 
     var editorWindow: NSWindow?
@@ -57,6 +60,10 @@ final class AppController: NSObject, NSMenuDelegate, NSWindowDelegate {
         let t = Timer(timeInterval: 1.0 / 60.0, target: self, selector: #selector(tick), userInfo: nil, repeats: true)
         RunLoop.main.add(t, forMode: .common)
         timer = t
+
+        clipboard.registerHotKey()
+        NotificationCenter.default.addObserver(self, selector: #selector(showClipboardAtCursor),
+                                               name: .murkaClipboardHotKey, object: nil)
     }
 
     @discardableResult
@@ -124,6 +131,9 @@ final class AppController: NSObject, NSMenuDelegate, NSWindowDelegate {
         menu.addItem(add)
 
         menu.addItem(item("Покормить всех 🐟", #selector(feedAll)))
+        let clip = NSMenuItem(title: "📋 Буфер обмена   ⌃⌥V", action: nil, keyEquivalent: "")
+        clip.submenu = makeClipboardMenu(withSettings: true)
+        menu.addItem(clip)
         let adv = item("Лазать по окнам и стенам", #selector(toggleAdventures))
         adv.state = adventures ? .on : .off
         menu.addItem(adv)
@@ -187,6 +197,66 @@ final class AppController: NSObject, NSMenuDelegate, NSWindowDelegate {
         } catch {
             cats.first?.say("Не получилось 😿", 3)
         }
+    }
+
+    // MARK: - Буфер обмена
+
+    func makeClipboardMenu(withSettings: Bool) -> NSMenu {
+        let m = NSMenu(title: "Буфер обмена")
+        if !clipboard.enabled {
+            let off = NSMenuItem(title: "Кот не запоминает скопированное", action: nil, keyEquivalent: "")
+            off.isEnabled = false
+            m.addItem(off)
+        } else if clipboard.items.isEmpty {
+            let empty = NSMenuItem(title: "Пока ничего не скопировано", action: nil, keyEquivalent: "")
+            empty.isEnabled = false
+            m.addItem(empty)
+        } else {
+            let hint = NSMenuItem(title: "Нажми — и вставляй через ⌘V", action: nil, keyEquivalent: "")
+            hint.isEnabled = false
+            m.addItem(hint)
+            for (i, text) in clipboard.items.enumerated() {
+                let it = item(ClipboardHistory.title(text), #selector(copyClip(_:)))
+                it.representedObject = text
+                it.toolTip = String(text.prefix(500))
+                if i < 9 { it.keyEquivalent = String(i + 1) }
+                it.keyEquivalentModifierMask = []
+                m.addItem(it)
+            }
+        }
+        m.addItem(.separator())
+        if clipboard.enabled && !clipboard.items.isEmpty {
+            m.addItem(item("Очистить историю", #selector(clearClipboard)))
+        }
+        if withSettings {
+            let toggle = item("Запоминать скопированное", #selector(toggleClipboard))
+            toggle.state = clipboard.enabled ? .on : .off
+            m.addItem(toggle)
+        }
+        return m
+    }
+
+    @objc func copyClip(_ sender: NSMenuItem) {
+        guard let text = sender.representedObject as? String else { return }
+        clipboard.copy(text)
+        if let cat = cats.randomElement() {
+            cat.say(cat.config.line("Скопировал{а}! Вставляй ⌘V 📋"), 2.5)
+        }
+    }
+
+    @objc func clearClipboard() {
+        clipboard.clear()
+        cats.first?.say("Всё забыл" + ((cats.first?.config.female ?? false) ? "а" : "") + "! 🧹", 2)
+    }
+
+    @objc func toggleClipboard() {
+        clipboard.enabled.toggle()
+    }
+
+    // ⌃⌥V: показать историю прямо у курсора, не отбирая фокус у текущей программы
+    @objc func showClipboardAtCursor() {
+        let m = makeClipboardMenu(withSettings: false)
+        m.popUp(positioning: m.items.first(where: { $0.isEnabled }), at: NSEvent.mouseLocation, in: nil)
     }
 
     // MARK: - Обновления
@@ -326,6 +396,16 @@ final class AppController: NSObject, NSMenuDelegate, NSWindowDelegate {
             scanWindows()
         }
         for cat in cats { cat.tick(step) }
+
+        // Дважды в секунду смотрим, не скопировали ли что-то новое
+        if time - lastClipboardPoll > 0.5 {
+            lastClipboardPoll = time
+            if clipboard.poll() != nil, time - lastCopyComment > 120, Double.random(in: 0..<1) < 0.3,
+               let cat = cats.randomElement(), cat.state != .sleep {
+                lastCopyComment = time
+                cat.say(cat.config.line("Запомнил{а} 📋"), 1.5)
+            }
+        }
 
         // Проверяем обновления через 10 секунд после запуска и потом раз в 12 часов
         if time > 10 && time - lastUpdateCheck > 12 * 3600 && !updater.installing {

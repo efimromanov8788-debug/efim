@@ -691,7 +691,8 @@ final class PetController: NSObject {
             window.setFrameOrigin(origin)
         }
 
-        if hunger > 0.75 && state != .sleep && time - lastHungryMessage > 45 {
+        // Напоминает о еде не чаще раза в 10 минут
+        if hunger > 0.75 && state != .sleep && time - lastHungryMessage > 600 {
             lastHungryMessage = time
             say(line(phrases.hungry), 4)
         }
