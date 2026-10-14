@@ -2,7 +2,7 @@
 # Скачивает последнюю версию Мурки, кладёт в «Программы» и запускает.
 set -euo pipefail
 
-URL="https://github.com/efimromanov8788-debug/claudeai/releases/latest/download/Murka.zip"
+URL="https://github.com/efimromanov8788-debug/efim/releases/latest/download/Murka.zip"
 DEST="/Applications"
 [ -w "$DEST" ] || DEST="$HOME/Applications"
 mkdir -p "$DEST"
