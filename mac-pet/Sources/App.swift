@@ -25,6 +25,9 @@ final class AppController: NSObject, NSMenuDelegate, NSWindowDelegate {
     var windows: [SeenWindow] = []
     var lastWindowScan: Double = -1
 
+    let updater = Updater()
+    var lastUpdateCheck: Double = -1e9
+
     var editorWindow: NSWindow?
     var editorOriginal: CatConfig?
 
@@ -126,6 +129,19 @@ final class AppController: NSObject, NSMenuDelegate, NSWindowDelegate {
         menu.addItem(adv)
         menu.addItem(.separator())
 
+        if updater.installing {
+            let busy = NSMenuItem(title: "Скачиваю обновление…", action: nil, keyEquivalent: "")
+            busy.isEnabled = false
+            menu.addItem(busy)
+        } else if updater.updateAvailable, let v = updater.latestVersion {
+            menu.addItem(item("⬆️ Обновить до версии \(v)", #selector(installUpdate)))
+        } else {
+            menu.addItem(item("Проверить обновления", #selector(checkUpdatesManually)))
+        }
+        let version = NSMenuItem(title: "Версия \(updater.currentVersion)", action: nil, keyEquivalent: "")
+        version.isEnabled = false
+        menu.addItem(version)
+
         let login = item("Запускать при входе в систему", #selector(toggleLogin))
         if #available(macOS 13.0, *) {
             login.state = SMAppService.mainApp.status == .enabled ? .on : .off
@@ -170,6 +186,37 @@ final class AppController: NSObject, NSMenuDelegate, NSWindowDelegate {
             }
         } catch {
             cats.first?.say("Не получилось 😿", 3)
+        }
+    }
+
+    // MARK: - Обновления
+
+    func checkForUpdates(manual: Bool) {
+        lastUpdateCheck = time
+        Task { @MainActor in
+            let found = await updater.check()
+            if found, let v = updater.latestVersion {
+                cats.first?.say("Вышла новая версия \(v)! Обнови меня через 🐱 в строке меню ⬆️", 6)
+            } else if manual {
+                cats.first?.say(updater.latestVersion == nil ? "Не получилось проверить 😿 Нет интернета?" : "У меня самая новая версия ✓", 4)
+            }
+        }
+    }
+
+    @objc func checkUpdatesManually() {
+        checkForUpdates(manual: true)
+    }
+
+    @objc func installUpdate() {
+        cats.first?.say("Скачиваю обновление… ⬇️", 10)
+        Task { @MainActor in
+            do {
+                try await updater.install(beforeQuit: { save() })
+            } catch Updater.UpdateError.translocated {
+                cats.first?.say("Сначала перетащи меня в «Программы», а потом обнови", 6)
+            } catch {
+                cats.first?.say("Не получилось обновиться 😿 Попробуй позже", 5)
+            }
         }
     }
 
@@ -279,6 +326,11 @@ final class AppController: NSObject, NSMenuDelegate, NSWindowDelegate {
             scanWindows()
         }
         for cat in cats { cat.tick(step) }
+
+        // Проверяем обновления через 10 секунд после запуска и потом раз в 12 часов
+        if time > 10 && time - lastUpdateCheck > 12 * 3600 && !updater.installing {
+            checkForUpdates(manual: false)
+        }
     }
 }
 
@@ -287,6 +339,11 @@ final class AppController: NSObject, NSMenuDelegate, NSWindowDelegate {
 @main
 enum MurkaApp {
     @MainActor static func main() {
+        let args = CommandLine.arguments
+        if let i = args.firstIndex(of: "--render-icon"), i + 1 < args.count {
+            IconRenderer.render(to: args[i + 1])
+            return
+        }
         let app = NSApplication.shared
         app.setActivationPolicy(.accessory)
         let controller = AppController()

@@ -16,8 +16,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Номер версии
+        run: |
+          /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString 1.${{ github.run_number }}" mac-pet/Info.plist
+          /usr/libexec/PlistBuddy -c "Set :CFBundleVersion ${{ github.run_number }}" mac-pet/Info.plist
+
       - name: Сборка
         run: ./mac-pet/build.sh
+
+      - name: Проверка иконки
+        run: test -f mac-pet/build/Murka.app/Contents/Resources/AppIcon.icns
 
       - name: Упаковка
         run: ditto -c -k --keepParent mac-pet/build/Murka.app Murka.zip

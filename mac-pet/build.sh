@@ -15,6 +15,15 @@ lipo -create build/Murka-arm64 build/Murka-x86_64 -output "$APP/Contents/MacOS/M
 rm build/Murka-arm64 build/Murka-x86_64
 
 cp Info.plist "$APP/Contents/Info.plist"
+
+# Иконку рисует сама программа тем же кодом, что и котов
+mkdir -p "$APP/Contents/Resources"
+if "$APP/Contents/MacOS/Murka" --render-icon build/AppIcon.iconset \
+    && iconutil -c icns build/AppIcon.iconset -o "$APP/Contents/Resources/AppIcon.icns"; then
+    rm -rf build/AppIcon.iconset
+else
+    echo "Не получилось нарисовать иконку — программа будет со стандартным значком"
+fi
 codesign --force --sign - "$APP" >/dev/null 2>&1 || true
 
 echo "Готово: $APP"
