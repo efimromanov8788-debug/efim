@@ -52,6 +52,10 @@ final class PetController: NSObject {
     var followCursor = false
     var pendingClimb = false
     var pendingGreet = false
+    // Крепкий сон: кот спит, пока по нему не кликнут, и не просыпается сам
+    var deepSleep = false {
+        didSet { if oldValue != deepSleep { app.saveSleeping() } }
+    }
     var wallGoal: WallGoal = .none
     var walkAfterLanding: CGFloat?
     var bubble: String?
@@ -108,7 +112,7 @@ final class PetController: NSObject {
 
     func show() {
         window.orderFrontRegardless()
-        say(config.line(phrases.greet), 4)
+        if !deepSleep { say(config.line(phrases.greet), 4) }
     }
 
     func close() {
@@ -136,7 +140,11 @@ final class PetController: NSObject {
         m.addItem(item("Покормить 🐟", #selector(feed)))
         m.addItem(item("Погладить", #selector(petMenu)))
         m.addItem(item("Позвать к курсору", #selector(callHere)))
-        m.addItem(item("Уложить спать", #selector(sleepNow)))
+        if deepSleep {
+            m.addItem(item("Разбудить ☀️", #selector(petMenu)))
+        } else {
+            m.addItem(item("Уложить спать до клика 💤", #selector(sleepNow)))
+        }
         let follow = item("Ходить за курсором", #selector(toggleFollow))
         follow.state = followCursor ? .on : .off
         m.addItem(follow)
@@ -173,9 +181,21 @@ final class PetController: NSObject {
     }
 
     @objc func sleepNow() {
-        surface = .floor
-        setState(.sleep, duration: 60)
-        say("Спокойной ночи…", 2)
+        goToSleep(quiet: false)
+    }
+
+    // Уснуть до клика. Со стены или потолка кот сначала спрыгивает вниз
+    func goToSleep(quiet: Bool) {
+        if surface != .floor {
+            surface = .floor
+            vx = 0
+            vy = 0
+            standingOn = nil
+        }
+        followCursor = false
+        setState(.sleep, duration: .infinity)
+        deepSleep = true
+        if !quiet { say("Спокойной ночи… Разбуди меня кликом 💤", 3) }
     }
 
     @objc func toggleFollow() {
@@ -198,6 +218,7 @@ final class PetController: NSObject {
     func setState(_ s: PetState, duration: Double? = nil) {
         state = s
         stateTime = 0
+        if s != .sleep && deepSleep { deepSleep = false }
         pendingClimb = false
         pendingGreet = false
         wallGoal = .none
@@ -598,7 +619,7 @@ final class PetController: NSObject {
                 origin.x += min(abs(d), speed * dt) * (d > 0 ? 1 : -1)
             }
         case .sleep:
-            if stateTime > stateDuration {
+            if !deepSleep && stateTime > stateDuration {
                 setState(.idle)
                 say("Потягушки~", 2)
             }
@@ -659,7 +680,9 @@ final class PetController: NSObject {
         dt = CGFloat(step)
         time += step
         stateTime += step
-        hunger = min(1, hunger + step / (traits.hungerMinutes * 60))
+        // Во сне кот голодает вдвое медленнее
+        let hungerRate = state == .sleep ? 0.5 : 1
+        hunger = min(1, hunger + step * hungerRate / (traits.hungerMinutes * 60))
 
         let area = currentArea
         let minX = area.minX

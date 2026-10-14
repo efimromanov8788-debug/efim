@@ -50,12 +50,14 @@ final class AppController: NSObject, NSMenuDelegate, NSWindowDelegate {
         statusItem.button?.title = "🐱"
         statusItem.menu = menu
 
+        loading = true
         let configs = CatStore.load()
         let area = NSScreen.main?.visibleFrame ?? NSRect(x: 0, y: 0, width: 1440, height: 900)
         for (i, config) in configs.enumerated() {
             let step = (area.width - PetController.size.width) / CGFloat(configs.count + 1)
             spawn(config, startX: area.minX + step * CGFloat(i + 1))
         }
+        loading = false
 
         let t = Timer(timeInterval: 1.0 / 60.0, target: self, selector: #selector(tick), userInfo: nil, repeats: true)
         RunLoop.main.add(t, forMode: .common)
@@ -70,8 +72,20 @@ final class AppController: NSObject, NSMenuDelegate, NSWindowDelegate {
     func spawn(_ config: CatConfig, startX: CGFloat? = nil) -> PetController {
         let cat = PetController(config: config, app: self, startX: startX)
         cats.append(cat)
+        if sleepingIDs.contains(config.id.uuidString) { cat.goToSleep(quiet: true) }
         cat.show()
         return cat
+    }
+
+    // Кто спит до клика — запоминаем, чтобы после перезапуска коты продолжили спать
+    var sleepingIDs: Set<String> = Set(UserDefaults.standard.stringArray(forKey: "sleepingCats") ?? [])
+
+    var loading = false
+
+    func saveSleeping() {
+        guard !loading else { return }
+        sleepingIDs = Set(cats.filter { $0.deepSleep }.map { $0.config.id.uuidString })
+        UserDefaults.standard.set(Array(sleepingIDs), forKey: "sleepingCats")
     }
 
     func save() {
@@ -101,6 +115,7 @@ final class AppController: NSObject, NSMenuDelegate, NSWindowDelegate {
         cat.close()
         cats.removeAll { $0 === cat }
         save()
+        saveSleeping()
     }
 
     // MARK: - Меню в строке меню
@@ -131,6 +146,11 @@ final class AppController: NSObject, NSMenuDelegate, NSWindowDelegate {
         menu.addItem(add)
 
         menu.addItem(item("Покормить всех 🐟", #selector(feedAll)))
+        if cats.allSatisfy({ $0.deepSleep }) {
+            menu.addItem(item("Разбудить всех ☀️", #selector(wakeAll)))
+        } else {
+            menu.addItem(item("Уложить всех спать 💤", #selector(sleepAll)))
+        }
         let clip = NSMenuItem(title: "📋 Буфер обмена   ⌃⌥V", action: nil, keyEquivalent: "")
         clip.submenu = makeClipboardMenu(withSettings: true)
         menu.addItem(clip)
@@ -180,6 +200,14 @@ final class AppController: NSObject, NSMenuDelegate, NSWindowDelegate {
 
     @objc func feedAll() {
         for cat in cats { cat.feed() }
+    }
+
+    @objc func sleepAll() {
+        for cat in cats where !cat.deepSleep { cat.goToSleep(quiet: false) }
+    }
+
+    @objc func wakeAll() {
+        for cat in cats where cat.deepSleep { cat.pet() }
     }
 
     @objc func toggleAdventures() {
