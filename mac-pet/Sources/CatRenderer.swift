@@ -345,8 +345,6 @@ enum CatRenderer {
         for (from, to) in [
             (NSPoint(x: n.x + 1, y: n.y - 2), NSPoint(x: n.x + 13, y: n.y)),
             (NSPoint(x: n.x + 1, y: n.y - 3), NSPoint(x: n.x + 13, y: n.y - 5)),
-            (hp(-8, -5), hp(-20, -3)),
-            (hp(-8, -6), hp(-20, -8)),
         ] {
             line(from, to, width: 1, color: whiskerColor)
         }
